@@ -1,0 +1,25 @@
+[tool.poetry]
+name = "starfinder"
+version = "0.1.0"
+description = ""
+authors = ["Brandon Aldrich <brandon@aldr.io>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+pygame = "^2.5.2"
+skyfield = "^1.48"
+numpy = "^1.26.4"
+pyserial = "^3.5"
+pynmea2 = "^1.19.0"
+smbus2 = "^0.4.3"
+icm20948 = "^1.0.0"
+imufusion = "^1.2.5"
+
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.2.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
