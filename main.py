@@ -1,4 +1,4 @@
-from starfinder.main import main
+from starfinder.main import Main
 
 if __name__ == "__main__":
-    main()
+    Main()
