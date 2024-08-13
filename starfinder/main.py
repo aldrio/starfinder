@@ -67,7 +67,7 @@ class Main:
         """
         Handle input events
         """
-        
+
         # Get window events
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -97,7 +97,7 @@ class Main:
         """
         Render the scene
         """
-        
+
         # Clear the screen
         self.screen.fill((0, 0, 0))
 

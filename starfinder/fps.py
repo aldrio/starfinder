@@ -8,7 +8,7 @@ from starfinder.camera import SCREEN_HEIGHT, SCREEN_WIDTH, Camera, HorizontalCoo
 
 class Fps:
     def __init__(self):
-        self.font = pygame.font.Font(None, 18)
+        self.font = pygame.font.Font(None, 12)
 
     def render(self, surface: Surface, clock: Clock):
         bottom = 40
@@ -37,6 +37,6 @@ class Fps:
 
         fps_rect = fps.get_rect()
         fps_rect.bottom = unit_rect.bottom
-        fps_rect.right = unit_rect.left - 8
+        fps_rect.right = unit_rect.left - 2
 
         surface.blit(fps, fps_rect)

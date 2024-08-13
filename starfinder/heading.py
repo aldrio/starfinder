@@ -8,11 +8,11 @@ from starfinder.camera import SCREEN_WIDTH, Camera
 
 class Heading:
     def __init__(self):
-        font = pygame.font.Font(None, 24)
+        font = pygame.font.Font(None, 20)
         self.north_label = font.render("N", True, (255, 255, 255), (0, 0, 0))
 
     def render(self, camera: Camera, surface: Surface):
-        size = 50
+        size = 20
         hsize = size / 2
         top = 40
         left = 40
