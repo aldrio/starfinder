@@ -1,3 +1,4 @@
+import itertools
 import math
 import numpy as np
 from pygame import Surface
@@ -16,8 +17,11 @@ class Grid:
         altitude_step: int = 15,
         azimuth_step: int = 15,
     ):
-        self.grid_lines = []
-        self.horizon_line = []
+        self.altitude_line_count = int(180 / altitude_step) - 1
+        self.azimuth_line_count = int(360 / azimuth_step)
+
+        self.grid_points = []
+        self.horizon_points = []
 
         self.direction_surfaces = [
             (0, font.render("North", True, text_color, bg_color)),
@@ -30,10 +34,13 @@ class Grid:
             (315, font.render("NW", True, text_color, bg_color)),
         ]
 
-        # latitude lines
+        # Generate grid points
+        total_altitude = 0
         for altitude in range(-90 + altitude_step, 90, altitude_step):
-            line = []
-            for azimuth in range(0, 360 + azimuth_step, azimuth_step):
+            total_azimuth = 0
+            total_altitude += 1
+            for azimuth in range(0, 360, azimuth_step):
+                total_azimuth += 1
                 hc = HorizontalCoordinates(
                     altitude=Angle(
                         degrees=altitude,
@@ -42,67 +49,61 @@ class Grid:
                         degrees=azimuth,
                     ),
                 )
-                line.append(
-                    np.array(
-                        [
-                            math.sin(hc.azimuth.radians)
-                            * math.cos(-hc.altitude.radians),
-                            math.sin(-hc.altitude.radians),
-                            math.cos(hc.azimuth.radians)
-                            * math.cos(-hc.altitude.radians),
-                        ]
-                    )
+                point = np.array(
+                    [
+                        math.sin(hc.azimuth.radians) * math.cos(-hc.altitude.radians),
+                        math.sin(-hc.altitude.radians),
+                        math.cos(hc.azimuth.radians) * math.cos(-hc.altitude.radians),
+                    ]
                 )
 
-            if altitude == 0:
-                self.horizon_line = line
-            else:
-                self.grid_lines.append(line)
+                self.grid_points.append(point)
+                if altitude == 0:
+                    self.horizon_points.append(point)
 
-        # longitude lines
-        for azimuth in range(0, 360 + azimuth_step, azimuth_step):
-            line = []
-            for altitude in range(-90 + altitude_step, 90, altitude_step):
-                hc = HorizontalCoordinates(
-                    altitude=Angle(
-                        degrees=altitude,
-                    ),
-                    azimuth=Angle(
-                        degrees=azimuth,
-                    ),
-                )
-                line.append(
-                    np.array(
-                        [
-                            math.sin(hc.azimuth.radians)
-                            * math.cos(-hc.altitude.radians),
-                            math.sin(-hc.altitude.radians),
-                            math.cos(hc.azimuth.radians)
-                            * math.cos(-hc.altitude.radians),
-                        ]
-                    )
-                )
-            self.grid_lines.append(line)
+        self.grid_points = np.array(self.grid_points)
+        self.horizon_points = np.array(self.horizon_points)
 
     def render(self, camera: Camera, surface: Surface):
         # continuous lines in the view
-        lines = []
-        for grid_line in self.grid_lines:
-            lines.extend(get_continuous_lines(grid_line, camera))
+        all_projected_points, valid_points_mask = camera.project_points(
+            self.grid_points
+        )
 
-        for line in lines:
-            if len(line) < 2:
-                continue
+        for altitude_line_index in range(self.altitude_line_count):
+            altitude_line_index_start = altitude_line_index * self.azimuth_line_count
+            altitude_line_index_end = (
+                altitude_line_index + 1
+            ) * self.azimuth_line_count
 
-            pygame.draw.lines(surface, (30, 30, 30), False, line)
+            altitude_line_points = all_projected_points[
+                altitude_line_index_start:altitude_line_index_end
+            ]
+            valid_altitude_line_points = valid_points_mask[
+                altitude_line_index_start:altitude_line_index_end
+            ]
 
-        # horizon line
-        lines = get_continuous_lines(self.horizon_line, camera)
-        for line in lines:
-            if len(line) < 2:
-                continue
+            render_valid_lines(
+                altitude_line_points,
+                valid_altitude_line_points,
+                surface,
+                wrap=True,
+            )
 
-            pygame.draw.lines(surface, (60, 60, 60), False, line, 2)
+        for azimuth_line_index in range(self.azimuth_line_count):
+            azimuth_line_points = all_projected_points[
+                azimuth_line_index :: self.azimuth_line_count
+            ]
+            valid_azimuth_line_points = valid_points_mask[
+                azimuth_line_index :: self.azimuth_line_count
+            ]
+
+            render_valid_lines(
+                azimuth_line_points,
+                valid_azimuth_line_points,
+                surface,
+                wrap=False,
+            )
 
         # Render direction labels
         for angle, text_surface in self.direction_surfaces:
@@ -113,22 +114,27 @@ class Grid:
                 surface.blit(text_surface, text_rect)
 
 
-def get_continuous_lines(line, camera):
-    lines = []
-    last_point = None
-    for grid_point in line:
-        point = camera.project_point(
-            grid_point,
-        )
+def pairwise_circle(iterable):
+    "s -> (s0,s1), (s1,s2), (s2, s3), ... (s<last>,s0)"
+    a, b = itertools.tee(iterable)
+    first_value = next(b, None)
+    return itertools.zip_longest(a, b, fillvalue=first_value)
 
-        if last_point is None:
-            lines.append([])
 
-        last_point = point
+def render_valid_lines(
+    points: np.ndarray,
+    valid_points_mask: np.ndarray,
+    surface: Surface,
+    wrap: bool = False,
+):
+    lines = zip(points, valid_points_mask)
+    if wrap:
+        lines = pairwise_circle(lines)
+    else:
+        lines = itertools.pairwise(lines)
 
-        if point is None:
+    for (a_point, a_valid), (b_point, b_valid) in lines:
+        if not a_valid or not b_valid:
             continue
 
-        lines[-1].append(point.to_tuple())
-
-    return lines
+        pygame.draw.line(surface, (255, 255, 255), a_point, b_point)

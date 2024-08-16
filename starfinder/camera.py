@@ -109,6 +109,34 @@ class Camera:
             (poi[1] * HALF_SCREEN_HEIGHT * ASPECT_RATIO) + HALF_SCREEN_HEIGHT,
         )
 
+    def project_points(self, pois: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Project an array of rays to screen pixels
+
+        Returns:
+            A tuple containing the screen points and a mask of valid points
+        """
+
+        # Rotate the pois relative to the camera
+        pois = np.dot(self.transformation_matrix, pois.T).T
+
+        # Create a mask for points in front of the camera
+        valid_mask = pois[:, 2] >= 0
+
+        # Initialize the screen points array
+        screen_points = np.empty((pois.shape[0], 2))
+
+        # Scale to the fov
+        pois *= math.pi / self.fov
+
+        # Project points to screen space
+        screen_points[:, 0] = (pois[:, 0] * HALF_SCREEN_WIDTH) + HALF_SCREEN_WIDTH
+        screen_points[:, 1] = (
+            pois[:, 1] * HALF_SCREEN_HEIGHT * ASPECT_RATIO
+        ) + HALF_SCREEN_HEIGHT
+
+        return screen_points, valid_mask
+
     def project_angle(self, length: Angle) -> float:
         """
         Project a degree length to a screen length
