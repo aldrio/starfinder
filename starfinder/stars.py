@@ -76,10 +76,9 @@ class Stars:
 
     def render(self, camera: Camera, surface: Surface):
         for body in self.stars:
-            p = camera.project(body.coordinates)
-            if not p:
+            pos = camera.project(body.coordinates)
+            if not pos:
                 continue
-            pos = p.to_tuple()
 
             # calculate the diameter of the body
             diameter = camera.project_angle(body.diameter)
@@ -92,14 +91,14 @@ class Stars:
             pygame.draw.circle(
                 surface,
                 (255, 255, 255),
-                pos,
+                pos.to_tuple(),
                 diameter / 2,
             )
 
             # render label under the body
             if body.label:
                 label = body.label.get_rect()
-                label.centerx = pos[0]
-                label.top = pos[1] + diameter / 2.0 + 6
+                label.centerx = pos.x
+                label.top = pos.y + diameter / 2.0 + 6
 
                 surface.blit(body.label, label)

@@ -12,6 +12,8 @@ class Body:
     coordinates: HorizontalCoordinates
     diameter: float
     label: Surface
+    color: tuple[int, int, int] = (255, 255, 255)
+    in_solar_system: bool = False
 
 
 class Bodies:
@@ -20,17 +22,17 @@ class Bodies:
 
         self.bodies = []
 
-        for key, name in [
-            ("sun", "Sun"),
-            ("moon", "Moon"),
-            ("mercury", "Mercury"),
-            ("venus", "Venus"),
-            ("mars", "Mars"),
-            ("jupiter barycenter", "Jupiter"),
-            ("saturn barycenter", "Saturn"),
-            ("uranus barycenter", "Uranus"),
-            ("neptune barycenter", "Neptune"),
-            ("pluto barycenter", "Pluto"),
+        for key, name, color in [
+            ("sun", "Sun", (255, 255, 240)),
+            ("moon", "Moon", (255, 255, 250)),
+            ("mercury", "Mercury", (250, 250, 250)),
+            ("venus", "Venus", (250, 250, 250)),
+            ("mars", "Mars", (255, 250, 250)),
+            ("jupiter barycenter", "Jupiter", (251, 237, 185)),
+            ("saturn barycenter", "Saturn", (255, 248, 233)),
+            ("uranus barycenter", "Uranus", (233, 255, 255)),
+            ("neptune barycenter", "Neptune", (233, 255, 250)),
+            ("pluto barycenter", "Pluto", (255, 248, 233)),
         ]:
             p = eph[key]
             astrometric = observer.observe(p)
@@ -55,34 +57,36 @@ class Bodies:
                         True,
                         (255, 255, 255),
                     ),
+                    color=color,
+                    in_solar_system=True,
                 )
             )
 
     def render(self, camera: Camera, surface: Surface):
         for body in self.bodies:
-            p = camera.project(body.coordinates)
-            if not p:
+            pos = camera.project(body.coordinates)
+            if not pos:
                 continue
-            pos = p.to_tuple()
 
             # calculate the diameter of the body
             diameter = camera.project_angle(body.diameter)
             diameter = max(1, diameter)
 
             # increase diameter so it's more visible
-            diameter *= 5
+            if body.in_solar_system:
+                diameter *= 5
 
             # render body
             pygame.draw.circle(
                 surface,
-                (255, 255, 255),
-                pos,
+                body.color,
+                pos.to_tuple(),
                 diameter / 2,
             )
 
             # render label under the body
             label = body.label.get_rect()
-            label.centerx = pos[0]
-            label.top = pos[1] + diameter / 2.0 + 6
+            label.centerx = pos.x
+            label.top = pos.y + diameter / 2.0 + 6
 
             surface.blit(body.label, label)
