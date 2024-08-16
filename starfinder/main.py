@@ -1,8 +1,10 @@
 import math
 import pygame
+import os
+import atexit
+
 from skyfield.api import load, N, E, wgs84
 from skyfield.data import hipparcos
-
 
 from starfinder.bodies import Bodies
 from starfinder.camera import (
@@ -18,6 +20,17 @@ from starfinder.imu import ImuManager
 from starfinder.heading import Heading
 from starfinder.stars import Stars
 
+# Check if we are running on the device
+IS_ON_DEVICE = os.path.exists("/dev/fb1")
+
+# Open the framebuffer if we're on the device
+# on the pi, we write directly to the framebuffer to avoid the overhead of X11.
+# I had trouble getting pygame/SDL to work with directfb or fbdev, so this is a
+# workaround.
+if IS_ON_DEVICE:
+    fb = open("/dev/fb1", "wb")
+    atexit.register(fb.close)
+
 
 class Main:
 
@@ -26,8 +39,14 @@ class Main:
         pygame.init()
 
         # Set up display
-        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-        pygame.display.set_caption("Starfinder")
+        if IS_ON_DEVICE:
+            self.screen = pygame.surface.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), 0, 16)
+        else:
+            self.screen = pygame.display.set_mode(
+                (SCREEN_WIDTH, SCREEN_HEIGHT),
+                vsync=False,
+            )
+            pygame.display.set_caption("Starfinder")
 
         # Define font and colors
         self.font = pygame.font.Font(None, 36)
@@ -36,6 +55,7 @@ class Main:
 
         # Set up the clock
         self.clock = pygame.time.Clock()
+        self.delta = 0
 
         self.display_progress(0)
 
@@ -52,7 +72,7 @@ class Main:
         self.prepare_info()
 
         # self.camera = Camera(0, math.radians(180), 0, math.radians(60))
-        self.camera = Camera(0, math.radians(180), 0, PHYSICAL_FOV)
+        self.camera = Camera(0, math.radians(180), 0, math.radians(60))
 
         self.grid = Grid(self.font, self.text_color, self.bg_color)
         self.heading = Heading()
@@ -61,7 +81,7 @@ class Main:
         while True:
             self.tick_input()
             self.render()
-            self.clock.tick(60)
+            self.delta = self.clock.tick(30) / 1000
 
     def tick_input(self):
         """
@@ -109,7 +129,7 @@ class Main:
         self.heading.render(self.camera, self.screen)
 
         # Update the display
-        pygame.display.flip()
+        self.refresh()
 
     def prepare_info(self):
         """
@@ -139,4 +159,14 @@ class Main:
         text_rect = text.get_rect()
         text_rect.center = self.screen.get_rect().center
         self.screen.blit(text, text_rect)
-        pygame.display.flip()
+
+        # Update the display
+        self.refresh()
+
+    def refresh(self):
+        if IS_ON_DEVICE:
+            fb.seek(0)
+            fb.write(self.screen.get_buffer())
+            fb.flush()
+        else:
+            pygame.display.flip()
