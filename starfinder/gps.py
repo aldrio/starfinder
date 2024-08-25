@@ -48,7 +48,7 @@ class GpsManager(threading.Thread):
                 try:
                     msg = pynmea2.parse(line)
 
-                    if "latitude" in msg and "longitude" in msg:
+                    if hasattr(msg, "latitude") and hasattr(msg, "longitude"):
                         with self.data_lock:
                             self.location = (msg.latitude, msg.longitude)
                 except pynmea2.ParseError as e:
