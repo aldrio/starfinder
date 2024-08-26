@@ -36,7 +36,7 @@ class ImuManager(threading.Thread):
             return self.orientation
 
     def run(self):
-        sample_rate = 60
+        sample_rate = 30
 
         try:
             bus = SMBus(1)
@@ -48,21 +48,22 @@ class ImuManager(threading.Thread):
 
             imu.set_accelerometer_low_pass(enabled=False)
             imu.set_gyro_low_pass(enabled=False)
-            imu.set_accelerometer_full_scale(16)
 
-            offset = imufusion.Offset(sample_rate)
+            imu.set_accelerometer_full_scale(16)
+            imu.set_gyro_full_scale(2000)
 
             ahrs = imufusion.Ahrs()
             ahrs.settings = imufusion.Settings(
                 imufusion.CONVENTION_NWU,
                 0.5,
-                250,
+                2000,
                 10,
                 10,
-                5 * sample_rate,
+                round(5.0 * sample_rate),
             )
-            self.running = True
+            offset = imufusion.Offset(sample_rate)
 
+            self.running = True
         except Exception as e:
             print(f"Failed to initialize IMU: {e}")
             self.running = False
@@ -74,12 +75,12 @@ class ImuManager(threading.Thread):
             delta = current_tick - last_tick
             last_tick = current_tick
 
-            mag = np.array(imu.read_magnetometer_data())
+            mx, my, mz = imu.read_magnetometer_data()
+            mag = np.array([mx, my, mz])
+
             ax, ay, az, gx, gy, gz = imu.read_accelerometer_gyro_data()
             acc = np.array([ax, ay, az])
-            gyro = np.array([gx, gy, gz])
-
-            gyro = offset.update(gyro)
+            gyro = offset.update(np.array([gx, gy, gz]))
 
             ahrs.update(
                 gyro,
@@ -87,10 +88,11 @@ class ImuManager(threading.Thread):
                 mag,
                 delta,
             )
+
             euler = ahrs.quaternion.to_euler()
-            roll = math.radians(euler[0])
-            pitch = math.radians(euler[1])
-            yaw = math.radians(euler[2])
+            roll = math.radians(-euler[1])
+            pitch = math.radians(-euler[0]) + math.pi / 2
+            yaw = math.radians(euler[2]) + math.pi/ 2 + math.radians(magnetic_declination)
 
             orientation = Orientation(pitch, yaw, roll)
             with self.orientation_lock:
