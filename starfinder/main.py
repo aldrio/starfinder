@@ -2,6 +2,7 @@ import math
 import pygame
 import os
 import atexit
+import time
 
 from skyfield.api import load, N, E, wgs84
 from skyfield.data import hipparcos
@@ -69,6 +70,9 @@ class Main:
         with load.open(hipparcos.URL) as f:
             self.hpc = hipparcos.load_dataframe(f)
 
+        self.coordinates = None
+        self.last_location_update = 0
+        self.update_location()
         self.prepare_info()
 
         # self.camera = Camera(0, math.radians(180), 0, math.radians(60))
@@ -106,12 +110,10 @@ class Main:
         # Update the camera orientation from the IMU
         if self.imu.running:
             orientation = self.imu.get_orientation()
-            self.camera = Camera(
-                orientation.pitch,
-                orientation.yaw,
-                -orientation.roll,
-                self.camera.fov,
-            )
+
+        # Update the GPS
+        if time.monotonic() - self.last_location_update > 15:
+            self.update_location()
 
     def render(self):
         """
@@ -131,6 +133,27 @@ class Main:
         # Update the display
         self.refresh()
 
+    def update_location(self):
+        """
+        Update the observer's location
+        """
+
+        self.last_location_update = time.monotonic()
+        coordinates = self.gps.get_location(timeout=0.1)
+
+        if self.coordinates is None:
+            coordinates_diff = math.inf
+        else:
+            coordinates_diff = math.sqrt(
+                (coordinates[0] - self.coordinates[0]) ** 2
+                + (coordinates[1] - self.coordinates[1]) ** 2
+            )
+
+        # Update and prepare info if the location has changed significantly
+        if coordinates_diff > 1.0:
+            self.coordinates = coordinates
+            self.prepare_info()
+
     def prepare_info(self):
         """
         Load the data for display
@@ -142,8 +165,10 @@ class Main:
         ts = load.timescale()
         t = ts.now()
 
-        location = self.gps.get_location(timeout=0.1)
-        location = earth + wgs84.latlon(location[0] * N, location[1] * E)
+        location = earth + wgs84.latlon(
+            self.coordinates[0] * N,
+            self.coordinates[1] * E,
+        )
         observer = location.at(t)
 
         self.bodies = Bodies(self.eph, observer)
