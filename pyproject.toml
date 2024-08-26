@@ -15,6 +15,8 @@ pynmea2 = "^1.19.0"
 smbus2 = "^0.4.3"
 icm20948 = "^1.0.0"
 imufusion = "^1.2.5"
+pandas = "^2.2.2"
+gpiozero = "^2.0.1"
 
 
 [tool.poetry.group.dev.dependencies]

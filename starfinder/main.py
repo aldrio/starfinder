@@ -6,6 +6,7 @@ import time
 
 from skyfield.api import load, N, E, wgs84
 from skyfield.data import hipparcos
+from gpiozero import Button, DigitalOutputDevice
 
 from starfinder.bodies import Bodies
 from starfinder.camera import (
@@ -20,17 +21,32 @@ from starfinder.grid import Grid
 from starfinder.imu import ImuManager
 from starfinder.heading import Heading
 from starfinder.stars import Stars
+from starfinder.zoom_button import ZoomButton
 
 # Check if we are running on the device
 IS_ON_DEVICE = os.path.exists("/dev/fb1")
 
-# Open the framebuffer if we're on the device
-# on the pi, we write directly to the framebuffer to avoid the overhead of X11.
-# I had trouble getting pygame/SDL to work with directfb or fbdev, so this is a
-# workaround.
 if IS_ON_DEVICE:
+    # Open the framebuffer
+    # on the pi, we write directly to the framebuffer to avoid the overhead of X11.
+    # I had trouble getting pygame/SDL to work with directfb or fbdev, so this is a
+    # workaround.
     fb = open("/dev/fb1", "wb")
     atexit.register(fb.close)
+
+    # enable some power for the buttons. Yeah, this is weird to do
+    # instead of powering the buttons directly, but I'm cramped for
+    # space inside the case.
+    out_zoom_in = DigitalOutputDevice(0)
+    out_zoom_out = DigitalOutputDevice(6)
+    out_zoom_in.on()
+    out_zoom_out.on()
+
+    zoom_in = Button(1, pull_up=False)
+    zoom_out = Button(12, pull_up=False)
+else:
+    zoom_in = None
+    zoom_out = None
 
 
 class Main:
@@ -82,10 +98,70 @@ class Main:
         self.heading = Heading()
         self.fps = Fps()
 
+        # keep track of input
+        self.zoom_in = ZoomButton(
+            pygame.K_UP,
+            zoom_in,
+            None,
+            self.zoom_in_double_tap,
+        )
+        self.zoom_out = ZoomButton(
+            pygame.K_DOWN,
+            zoom_out,
+            None,
+            self.zoom_out_double_tap,
+        )
+
+        self.zoom_levels = [
+            PHYSICAL_FOV,
+            math.radians(60),
+            math.radians(120),
+        ]
+
         while True:
             self.tick_input()
             self.render()
             self.delta = self.clock.tick(30) / 1000
+
+    def update_camera(self, pitch=None, yaw=None, roll=None, fov=None):
+        """
+        Update the camera orientation
+        """
+
+        self.camera = Camera(
+            pitch if pitch is not None else self.camera.pitch,
+            yaw if yaw is not None else self.camera.yaw,
+            roll if roll is not None else self.camera.roll,
+            fov if fov is not None else self.camera.fov,
+        )
+
+    def get_closest_zoom_level_index(self):
+        """
+        Get the closest zoom level index
+        """
+
+        closest = None
+        closest_diff = math.inf
+
+        for i, level in enumerate(self.zoom_levels):
+            diff = abs(self.camera.fov - level)
+            if diff < closest_diff:
+                closest = i
+                closest_diff = diff
+
+        return closest
+
+    def zoom_in_double_tap(self):
+        i = self.get_closest_zoom_level_index()
+        self.update_camera(
+            fov=self.zoom_levels[(i - 1) % len(self.zoom_levels)],
+        )
+
+    def zoom_out_double_tap(self):
+        i = self.get_closest_zoom_level_index()
+        self.update_camera(
+            fov=self.zoom_levels[(i + 1) % len(self.zoom_levels)],
+        )
 
     def tick_input(self):
         """
@@ -100,16 +176,41 @@ class Main:
             elif event.type == pygame.MOUSEMOTION:
                 if event.buttons[0]:
                     dx, dy = event.rel
-                    self.camera = Camera(
-                        self.camera.pitch - math.radians(dy) / 2,
-                        self.camera.yaw + math.radians(dx) / 2,
-                        self.camera.roll,
-                        self.camera.fov,
+                    self.update_camera(
+                        pitch=self.camera.pitch - math.radians(dy) / 2,
+                        yaw=self.camera.yaw + math.radians(dx) / 2,
+                        roll=self.camera.roll,
                     )
+
+            # Handle button events
+            self.zoom_in.handle_event(event)
+            self.zoom_out.handle_event(event)
+
+        # Handle zoom button
+        self.zoom_in.poll()
+        self.zoom_out.poll()
+
+        self.zoom_in.update()
+        self.zoom_out.update()
+
+        # Update the zoom level
+        if self.zoom_in.is_zooming:
+            self.update_camera(
+                fov=self.camera.fov - math.radians(15) * self.delta,
+            )
+        if self.zoom_out.is_zooming:
+            self.update_camera(
+                fov=self.camera.fov + math.radians(15) * self.delta,
+            )
 
         # Update the camera orientation from the IMU
         if self.imu.running:
             orientation = self.imu.get_orientation()
+            self.update_camera(
+                pitch=orientation.pitch,
+                yaw=orientation.yaw,
+                roll=orientation.roll,
+            )
 
         # Update the GPS
         if time.monotonic() - self.last_location_update > 15:
