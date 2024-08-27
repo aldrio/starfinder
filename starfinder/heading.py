@@ -4,6 +4,7 @@ from pygame import Surface
 import pygame
 
 from starfinder.camera import SCREEN_WIDTH, Camera
+from starfinder.gfx import draw_aa_circle
 
 
 class Heading:
@@ -13,18 +14,18 @@ class Heading:
 
     def render(self, camera: Camera, surface: Surface):
         size = 20
-        hsize = size / 2
+        hsize = size // 2
         top = 40
         left = 40
 
         cx = SCREEN_WIDTH - left - hsize
         cy = top + hsize
 
-        pygame.draw.circle(
+        draw_aa_circle(
             surface,
             (255, 255, 255),
             (cx, cy),
-            size / 2,
+            hsize,
             3,
         )
 

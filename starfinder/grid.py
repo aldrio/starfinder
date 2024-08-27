@@ -136,5 +136,4 @@ def render_valid_lines(
     for (a_point, a_valid), (b_point, b_valid) in lines:
         if not a_valid or not b_valid:
             continue
-
-        pygame.draw.line(surface, (255, 255, 255), a_point, b_point)
+        pygame.draw.aaline(surface, (255, 255, 255), a_point[:2], b_point[:2])

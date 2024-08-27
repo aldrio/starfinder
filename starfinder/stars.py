@@ -7,6 +7,7 @@ from skyfield.units import Angle, Distance
 from skyfield.api import Star
 
 from starfinder.camera import Camera, HorizontalCoordinates
+from starfinder.gfx import draw_aa_filled_circle
 
 
 @dataclass
@@ -35,7 +36,6 @@ class Stars:
 
         # show other stars of interest
         other = hpc[hpc.index.isin([78322])]
-
 
         hpc = pd.concat([brightest, other])
         hpc_stars = Star.from_dataframe(hpc)
@@ -88,7 +88,7 @@ class Stars:
             diameter *= 5
 
             # render body
-            pygame.draw.circle(
+            draw_aa_filled_circle(
                 surface,
                 (255, 255, 255),
                 pos.to_tuple(),
