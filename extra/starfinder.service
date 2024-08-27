@@ -1,0 +1,13 @@
+[Unit]
+Description=Starfinder
+
+[Service]
+User=starfinder
+WorkingDirectory=/home/starfinder/starfinder
+ExecStart=/home/starfinder/.local/bin/poetry run python main.py
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
